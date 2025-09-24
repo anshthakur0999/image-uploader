@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         // Docker Hub or ECR registry
-        DOCKER_REGISTRY = 'anshthakur503'
+        DOCKER_REGISTRY = 'anshthakur0999'
         IMAGE_NAME = "${DOCKER_REGISTRY}/image-uploader"
         IMAGE_TAG = "${BUILD_NUMBER}"
         DOCKER_CREDENTIALS = 'docker-hub-credentials'

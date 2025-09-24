@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-uploader-deployment
+  namespace: image-uploader
+  labels:
+    app: image-uploader
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: image-uploader
+  template:
+    metadata:
+      labels:
+        app: image-uploader
+    spec:
+      containers:
+      - name: image-uploader
+        image: public.ecr.aws/nginx/nginx:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: NEXT_TELEMETRY_DISABLED
+          value: "1"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5

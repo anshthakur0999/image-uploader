@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-uploader-service
+  namespace: image-uploader
+  labels:
+    app: image-uploader
+spec:
+  selector:
+    app: image-uploader
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer

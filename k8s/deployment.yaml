@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-uploader-deployment
+  namespace: image-uploader
+  labels:
+    app: image-uploader
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-uploader
+  template:
+    metadata:
+      labels:
+        app: image-uploader
+    spec:
+      containers:
+      - name: image-uploader
+        image: ${IMAGE_NAME}:${IMAGE_TAG}
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: image-uploader-config
+              key: NODE_ENV
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: image-uploader-config
+              key: PORT
+        - name: NEXT_TELEMETRY_DISABLED
+          valueFrom:
+            configMapKeyRef:
+              name: image-uploader-config
+              key: NEXT_TELEMETRY_DISABLED
+        volumeMounts:
+        - name: uploads-storage
+          mountPath: /app/public/uploads
+        - name: metadata-storage
+          mountPath: /app/images.json
+          subPath: images.json
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: uploads-storage
+        persistentVolumeClaim:
+          claimName: image-uploader-pvc
+      - name: metadata-storage
+        persistentVolumeClaim:
+          claimName: image-uploader-pvc

@@ -27,6 +27,13 @@ spec:
           value: "3000"
         - name: NEXT_TELEMETRY_DISABLED
           value: "1"
+        - name: METADATA_PATH
+          value: "/app/data"
+        volumeMounts:
+        - name: uploads-storage
+          mountPath: /app/public/uploads
+        - name: metadata-storage
+          mountPath: /app/data
         resources:
           requests:
             memory: "128Mi"
@@ -46,3 +53,10 @@ spec:
             port: 3000
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+      - name: uploads-storage
+        persistentVolumeClaim:
+          claimName: image-uploader-pvc
+      - name: metadata-storage
+        persistentVolumeClaim:
+          claimName: image-uploader-metadata-pvc

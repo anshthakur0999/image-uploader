@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs"
 import path from "path"
 
 const UPLOAD_DIR = path.join(process.cwd(), "public/uploads")
-const METADATA_FILE = path.join(process.cwd(), "images.json")
+const METADATA_FILE = path.join(process.env.METADATA_PATH || process.cwd(), "images.json")
 
 function readMetadata() {
   try {

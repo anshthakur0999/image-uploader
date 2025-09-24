@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { existsSync, readFileSync } from "fs"
 import path from "path"
 
-const METADATA_FILE = path.join(process.cwd(), "images.json")
+const METADATA_FILE = path.join(process.env.METADATA_PATH || process.cwd(), "images.json")
 
 function readMetadata() {
   try {

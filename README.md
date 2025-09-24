@@ -1,6 +1,47 @@
 # Image Uploader
 
-A simple fullstack image uploader with a Node.js/Express backend and static frontend.
+A **Ne- **Error Handling**: Comprehensive error messages and validation
+
+## 🏗️ Infrastructure
+
+### Production Deployment
+- **Platform**: AWS EKS (Kubernetes)
+- **Container Registry**: Docker Hub (`anshthakur503/image-uploader`)
+- **CI/CD**: GitHub Actions
+- **Load Balancer**: AWS Application Load Balancer
+- **Node Type**: t3.small (1 instance)
+
+### Deployment Status
+```
+✅ EKS Cluster: image-uploader-cluster (us-east-1)
+✅ Application: Running (1/1 pods)
+✅ Service: LoadBalancer active
+✅ CI/CD Pipeline: GitHub Actions enabled
+✅ Container: anshthakur503/image-uploader:latest
+```
+
+## 🚀 Quick Start
+
+### Local Development
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm run devScript** image uploader application with complete CI/CD pipeline deployment on AWS EKS.
+
+## 🚀 Live Application
+**URL**: http://ae1a167b4233347bd968540879ee85e2-1516540849.us-east-1.elb.amazonaws.com
+
+## 📚 Documentation
+- **[Complete Deployment Guide](DEPLOYMENT_GUIDE.md)** - Step-by-step CI/CD setup with AWS EKS
+- **[Quick Reference](QUICK_REFERENCE.md)** - Essential commands and troubleshooting
+- **[Copilot Instructions](.github/copilot-instructions.md)** - AI agent guidance for development
+
+## ⚡ Tech Stack
+- **Frontend**: Next.js 15, React 19, TypeScript, shadcn/ui, Tailwind CSS v4
+- **Infrastructure**: AWS EKS, Docker, GitHub Actions
+- **Storage**: File system with JSON metadata
 
 ## Features
 

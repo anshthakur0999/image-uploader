@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "1758769188813",
+    "name": "photo_2025-09-21_23-54-21.jpg",
+    "filename": "uploads/image-1758769184406-336233139.jpg",
+    "size": 226919,
+    "url": "https://your-image-uploader-bucket.s3.us-east-1.amazonaws.com/uploads/image-1758769184406-336233139.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAXKHQVRUCYDPVKVOY%2F20250925%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250925T025948Z&X-Amz-Expires=604800&X-Amz-Signature=bc3d23fc33d70634b2e0b425a9902db8286d80a0dfe640bd22a50d60fcc3cd81&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+    "s3Key": "uploads/image-1758769184406-336233139.jpg",
+    "uploadedAt": "2025-09-25T02:59:48.813Z"
+  }
+]

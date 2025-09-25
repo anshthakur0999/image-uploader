@@ -1,9 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { unlink } from "fs/promises"
 import { existsSync, readFileSync, writeFileSync } from "fs"
 import path from "path"
+import { deleteFromS3, extractS3KeyFromUrl } from "@/lib/s3"
 
-const UPLOAD_DIR = path.join(process.cwd(), "public/uploads")
 const METADATA_FILE = path.join(process.env.METADATA_PATH || process.cwd(), "images.json")
 
 function readMetadata() {
@@ -40,10 +39,25 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const imageToDelete = metadata[imageIndex]
 
-    // Delete the physical file
-    const filePath = path.join(UPLOAD_DIR, imageToDelete.filename)
-    if (existsSync(filePath)) {
-      await unlink(filePath)
+    // Delete from S3
+    let s3Key = imageToDelete.s3Key
+    
+    // For backward compatibility, if s3Key doesn't exist, try to extract from URL or use filename
+    if (!s3Key) {
+      if (imageToDelete.url && imageToDelete.url.includes('s3')) {
+        s3Key = extractS3KeyFromUrl(imageToDelete.url)
+      } else {
+        // Fallback to filename if it looks like an S3 key
+        s3Key = imageToDelete.filename
+      }
+    }
+
+    if (s3Key) {
+      const deleteResult = await deleteFromS3(s3Key)
+      if (!deleteResult.success) {
+        console.warn(`Failed to delete S3 object: ${deleteResult.error}`)
+        // Continue with metadata deletion even if S3 deletion fails
+      }
     }
 
     // Remove from metadata

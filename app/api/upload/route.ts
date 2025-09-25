@@ -1,17 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
 import { existsSync, readFileSync, writeFileSync } from "fs"
 import path from "path"
+import { uploadToS3, generateS3Key } from "@/lib/s3"
 
-const UPLOAD_DIR = path.join(process.cwd(), "public/uploads")
 const METADATA_FILE = path.join(process.env.METADATA_PATH || process.cwd(), "images.json")
 
-// Ensure upload directory exists
-async function ensureUploadDir() {
-  if (!existsSync(UPLOAD_DIR)) {
-    await mkdir(UPLOAD_DIR, { recursive: true })
-  }
-}
+// No longer needed - files are uploaded to S3
 
 // Helper functions for metadata
 function readMetadata() {
@@ -36,8 +30,6 @@ function writeMetadata(metadata: any[]) {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureUploadDir()
-
     const formData = await request.formData()
     const file = formData.get("image") as File
 
@@ -59,16 +51,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "File too large. Maximum size is 5MB." }, { status: 400 })
     }
 
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
-    const ext = path.extname(file.name)
-    const filename = `image-${uniqueSuffix}${ext}`
-    const filepath = path.join(UPLOAD_DIR, filename)
+    // Generate unique S3 key
+    const s3Key = generateS3Key(file.name)
 
-    // Save file
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filepath, buffer)
+    // Upload to S3
+    const uploadResult = await uploadToS3(file, s3Key, file.type)
+
+    if (!uploadResult.success) {
+      return NextResponse.json({ 
+        success: false, 
+        message: `Upload failed: ${uploadResult.error}` 
+      }, { status: 500 })
+    }
 
     // Read existing metadata
     const metadata = readMetadata()
@@ -77,9 +71,10 @@ export async function POST(request: NextRequest) {
     const imageData = {
       id: Date.now().toString(),
       name: file.name,
-      filename: filename,
+      filename: s3Key, // Store S3 key instead of local filename
       size: file.size,
-      url: `/uploads/${filename}`,
+      url: uploadResult.url!, // S3 URL instead of local path
+      s3Key: s3Key, // Store S3 key for deletion
       uploadedAt: new Date().toISOString(),
     }
 

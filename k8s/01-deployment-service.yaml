@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-uploader-app
+  namespace: image-uploader
+  labels:
+    app: image-uploader
+    component: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-uploader
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: image-uploader
+        component: frontend
+    spec:
+      containers:
+      - name: image-uploader
+        image: your-dockerhub-username/image-uploader:latest  # Replace with your actual image
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NODE_ENV
+        - name: NEXT_TELEMETRY_DISABLED
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: NEXT_TELEMETRY_DISABLED
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: AWS_REGION
+        - name: STORAGE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: STORAGE_TYPE
+        - name: AWS_S3_BUCKET_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: AWS_S3_BUCKET_NAME
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: secret-access-key
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        imagePullPolicy: Always
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-uploader-service
+  namespace: image-uploader
+  labels:
+    app: image-uploader
+    component: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: image-uploader
+    component: frontend

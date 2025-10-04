@@ -1,0 +1,130 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/image-uploader
+  
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run linter
+      run: npm run lint || true
+      
+    - name: Build application
+      run: npm run build
+      
+  build-and-push-docker:
+    name: Build and Push Docker Image
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_IMAGE }}
+        tags: |
+          type=sha,prefix={{branch}}-
+          type=ref,event=branch
+          type=semver,pattern={{version}}
+          latest
+          
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:latest
+          ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+        cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
+        
+  deploy-to-kubernetes:
+    name: Deploy to Kubernetes
+    needs: build-and-push-docker
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG }}
+        
+    - name: Create namespace
+      run: |
+        kubectl create namespace image-uploader --dry-run=client -o yaml | kubectl apply -f -
+        
+    - name: Create secrets
+      run: |
+        kubectl create secret generic aws-credentials \
+          --from-literal=AWS_REGION=${{ secrets.AWS_REGION }} \
+          --from-literal=AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+          --from-literal=AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+          --from-literal=AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }} \
+          --namespace=image-uploader \
+          --dry-run=client -o yaml | kubectl apply -f -
+          
+    - name: Update deployment image
+      run: |
+        sed -i "s|your-dockerhub-username/image-uploader:latest|${{ env.DOCKER_IMAGE }}:${{ github.sha }}|g" k8s/01-deployment.yaml
+        
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f k8s/00-namespace-secrets.yaml
+        kubectl apply -f k8s/01-deployment.yaml
+        kubectl apply -f k8s/02-service.yaml
+        kubectl apply -f k8s/03-ingress.yaml
+        
+    - name: Wait for deployment
+      run: |
+        kubectl rollout status deployment/image-uploader -n image-uploader --timeout=5m
+        
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n image-uploader
+        kubectl get services -n image-uploader
+        
+    - name: Get deployment URL
+      run: |
+        NODE_PORT=$(kubectl get svc image-uploader-service -n image-uploader -o jsonpath='{.spec.ports[0].nodePort}')
+        echo "Application deployed at port: $NODE_PORT"

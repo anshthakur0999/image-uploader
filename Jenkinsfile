@@ -37,7 +37,7 @@ pipeline {
                     string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
-                        echo "Pushing image to Amazon ECR..."
+                        echo 'Pushing image to Amazon ECR...'
                         bat """
                             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                             docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
@@ -51,9 +51,9 @@ pipeline {
         stage('Deploy to K3s') {
             steps {
                 script {
-                    echo "Deploying to K3s..."
+                    echo 'Deploying to K3s...'
                     bat """
-                        ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl set image deployment/image-uploader image-uploader=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} -n image-uploader && kubectl rollout status deployment/image-uploader -n image-uploader"
+                        "C:\\Program Files\\Git\\usr\\bin\\ssh.exe" -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl set image deployment/image-uploader image-uploader=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} -n image-uploader && kubectl rollout status deployment/image-uploader -n image-uploader"
                     """
                 }
             }

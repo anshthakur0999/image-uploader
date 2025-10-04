@@ -5,8 +5,10 @@ pipeline {
         AWS_REGION = 'us-east-1'
         ECR_REGISTRY = '503015902469.dkr.ecr.us-east-1.amazonaws.com'
         ECR_REPOSITORY = 'image-uploader'
-        AWS_ACCOUNT_ID = '503015902469'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        EC2_HOST = '54.167.28.105'
+        EC2_USER = 'ubuntu'
+        SSH_KEY_PATH = 'C:\\Users\\Ansh\\.ssh\\image-uploader-key.pem'
     }
     
     stages {
@@ -21,21 +23,22 @@ pipeline {
             steps {
                 script {
                     echo "Building Docker image with tag: ${IMAGE_TAG}"
-                    sh "docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ."
-                    sh "docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+                    bat "docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
+                    bat "docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+                    bat "docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
                 }
             }
         }
         
         stage('Push to ECR') {
             steps {
-                script {
-                    echo "Pushing image to Amazon ECR..."
-                    withCredentials([
-                        string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        sh """
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    script {
+                        echo "Pushing image to Amazon ECR..."
+                        bat """
                             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                             docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
                             docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
@@ -45,47 +48,12 @@ pipeline {
             }
         }
         
-        stage('Deploy to Kubernetes') {
+        stage('Deploy to K3s') {
             steps {
                 script {
-                    echo "Deploying to Kubernetes..."
-                    withCredentials([
-                        string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        // Recreate ECR credentials for K8s
-                        sh """
-                            kubectl delete secret ecr-credentials -n image-uploader --ignore-not-found=true
-                            kubectl create secret docker-registry ecr-credentials \
-                              --docker-server=${ECR_REGISTRY} \
-                              --docker-username=AWS \
-                              --docker-password=\$(aws ecr get-login-password --region ${AWS_REGION}) \
-                              --namespace=image-uploader
-                        """
-                        
-                        // Update deployment with new image
-                        sh """
-                            kubectl set image deployment/image-uploader \
-                                image-uploader=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} \
-                                -n image-uploader
-                        """
-                        
-                        // Wait for rollout to complete
-                        sh """
-                            kubectl rollout status deployment/image-uploader -n image-uploader --timeout=5m
-                        """
-                    }
-                }
-            }
-        }
-        
-        stage('Verify Deployment') {
-            steps {
-                script {
-                    echo "Verifying deployment..."
-                    sh """
-                        kubectl get pods -n image-uploader
-                        kubectl get services -n image-uploader
+                    echo "Deploying to K3s..."
+                    bat """
+                        ssh -i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl set image deployment/image-uploader image-uploader=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} -n image-uploader && kubectl rollout status deployment/image-uploader -n image-uploader"
                     """
                 }
             }
@@ -93,17 +61,14 @@ pipeline {
     }
     
     post {
+        always {
+            echo 'Pipeline finished!'
+        }
         success {
-            echo 'Pipeline executed successfully!'
-            echo "Deployed image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+            echo 'Deployment successful!'
         }
         failure {
-            echo 'Pipeline failed!'
-        }
-        always {
-            echo 'Cleaning up...'
-            sh "docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} || true"
-            sh "docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest || true"
+            echo 'Deployment failed!'
         }
     }
 }

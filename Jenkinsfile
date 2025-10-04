@@ -2,12 +2,11 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_REGISTRY = 'docker.io'
-        DOCKER_IMAGE_NAME = 'your-dockerhub-username/image-uploader'
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        KUBECONFIG_CREDENTIALS_ID = 'kubeconfig'
-        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-        IMAGE_TAG = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
+        AWS_REGION = 'us-east-1'
+        ECR_REGISTRY = '503015902469.dkr.ecr.us-east-1.amazonaws.com'
+        ECR_REPOSITORY = 'image-uploader'
+        AWS_ACCOUNT_ID = '503015902469'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
     
     stages {
@@ -22,19 +21,25 @@ pipeline {
             steps {
                 script {
                     echo "Building Docker image with tag: ${IMAGE_TAG}"
-                    docker.build("${DOCKER_IMAGE_NAME}:${IMAGE_TAG}")
-                    docker.build("${DOCKER_IMAGE_NAME}:latest")
+                    sh "docker build -t ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ."
+                    sh "docker tag ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
                 }
             }
         }
         
-        stage('Push to Docker Registry') {
+        stage('Push to ECR') {
             steps {
                 script {
-                    echo "Pushing image to Docker Registry..."
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", "${DOCKER_CREDENTIALS_ID}") {
-                        docker.image("${DOCKER_IMAGE_NAME}:${IMAGE_TAG}").push()
-                        docker.image("${DOCKER_IMAGE_NAME}:latest").push()
+                    echo "Pushing image to Amazon ECR..."
+                    withCredentials([
+                        string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                            docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+                            docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                        """
                     }
                 }
             }
@@ -44,19 +49,24 @@ pipeline {
             steps {
                 script {
                     echo "Deploying to Kubernetes..."
-                    withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
-                        // Apply Kubernetes manifests
+                    withCredentials([
+                        string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        // Recreate ECR credentials for K8s
                         sh """
-                            kubectl apply -f k8s/00-namespace-secrets.yaml
-                            kubectl apply -f k8s/01-deployment.yaml
-                            kubectl apply -f k8s/02-service.yaml
-                            kubectl apply -f k8s/03-ingress.yaml
+                            kubectl delete secret ecr-credentials -n image-uploader --ignore-not-found=true
+                            kubectl create secret docker-registry ecr-credentials \
+                              --docker-server=${ECR_REGISTRY} \
+                              --docker-username=AWS \
+                              --docker-password=\$(aws ecr get-login-password --region ${AWS_REGION}) \
+                              --namespace=image-uploader
                         """
                         
                         // Update deployment with new image
                         sh """
                             kubectl set image deployment/image-uploader \
-                                image-uploader=${DOCKER_IMAGE_NAME}:${IMAGE_TAG} \
+                                image-uploader=${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} \
                                 -n image-uploader
                         """
                         
@@ -73,11 +83,9 @@ pipeline {
             steps {
                 script {
                     echo "Verifying deployment..."
-                    withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIALS_ID}", variable: 'KUBECONFIG')]) {
-                        sh """
-                            kubectl get pods -n image-uploader
-                            kubectl get services -n image-uploader
-                            kubectl get ingress -n image-uploader
+                    sh """
+                        kubectl get pods -n image-uploader
+                        kubectl get services -n image-uploader
                         """
                     }
                 }

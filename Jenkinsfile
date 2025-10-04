@@ -86,8 +86,7 @@ pipeline {
                     sh """
                         kubectl get pods -n image-uploader
                         kubectl get services -n image-uploader
-                        """
-                    }
+                    """
                 }
             }
         }
@@ -96,15 +95,15 @@ pipeline {
     post {
         success {
             echo 'Pipeline executed successfully!'
-            echo "Deployed image: ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Deployed image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
         }
         failure {
             echo 'Pipeline failed!'
         }
         always {
             echo 'Cleaning up...'
-            sh "docker rmi ${DOCKER_IMAGE_NAME}:${IMAGE_TAG} || true"
-            sh "docker rmi ${DOCKER_IMAGE_NAME}:latest || true"
+            sh "docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} || true"
+            sh "docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest || true"
         }
     }
 }

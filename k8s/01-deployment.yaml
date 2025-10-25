@@ -6,7 +6,7 @@ metadata:
   labels:
     app: image-uploader
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: image-uploader
@@ -55,11 +55,11 @@ spec:
               key: AWS_S3_BUCKET_NAME
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "250m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "512Mi"
-            cpu: "500m"
+            memory: "256Mi"
+            cpu: "200m"
         livenessProbe:
           httpGet:
             path: /api/images

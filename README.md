@@ -2,6 +2,8 @@
 
 A Next.js image uploader application with AWS S3 integration, deployed on Kubernetes using Jenkins CI/CD pipeline.
 
+**✅ Automatic deployments enabled with Jenkins Poll SCM!**
+
 ## 🚀 Features
 
 - **Image Upload**: Upload images with drag-and-drop support
